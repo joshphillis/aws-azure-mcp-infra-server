@@ -17,6 +17,8 @@ services:
       - AZURE_CLIENT_ID=${AZURE_CLIENT_ID}
       - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
       - AZURE_SUBSCRIPTION_ID=${AZURE_SUBSCRIPTION_ID}
+      # Transport mode: http for Docker/K8s, stdio for MCP clients
+      - TRANSPORT=http
       # Redis (optional — leave unset for in-process memory store)
       - REDIS_URL=${REDIS_URL}
     depends_on:

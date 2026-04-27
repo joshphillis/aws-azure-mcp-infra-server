@@ -305,6 +305,73 @@ async def main():
         logger.info("MCP server ready")
         await app.run(read_stream, write_stream, app.create_initialization_options())
 
+# ── HTTP Transport (for Docker / Kubernetes standalone mode) ───────────────────
+
+# ── HTTP Transport (for Docker / Kubernetes standalone mode) ───────────────────
+
+async def _handle_http_tool_call(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+    try:
+        raw = await asyncio.wait_for(reader.read(65536), timeout=30)
+        request = raw.decode(errors="replace")
+        first_line = request.split("\r\n")[0]
+        parts = first_line.split(" ")
+        method = parts[0] if parts else "GET"
+        path = parts[1] if len(parts) > 1 else "/"
+
+        if method == "GET" and path in ("/health", "/ready"):
+            body = json.dumps({"status": "ok", "transport": "http"}).encode()
+            header = f"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {len(body)}\r\n\r\n"
+            writer.write(header.encode() + body)
+            await writer.drain()
+            return
+
+        if method == "POST" and path == "/tool":
+            body_parts = request.split("\r\n\r\n", 1)
+            body_str = body_parts[1] if len(body_parts) > 1 else "{}"
+            payload = json.loads(body_str)
+            tool_name = payload.get("name", "")
+            arguments = payload.get("arguments", {})
+            handler = _HANDLERS.get(tool_name)
+            if not handler:
+                result = json.dumps({"error": f"Unknown tool: {tool_name}", "code": "UNKNOWN_TOOL"})
+                http_status = "404 Not Found"
+            else:
+                try:
+                    result = await handler(**arguments)
+                    http_status = "200 OK"
+                except Exception as e:
+                    result = json.dumps({"error": str(e), "code": "TOOL_EXECUTION_ERROR", "tool": tool_name})
+                    http_status = "500 Internal Server Error"
+            body = result.encode()
+            header = f"HTTP/1.1 {http_status}\r\nContent-Type: application/json\r\nContent-Length: {len(body)}\r\n\r\n"
+            writer.write(header.encode() + body)
+            await writer.drain()
+            return
+
+        writer.write(b"HTTP/1.1 404 Not Found\r\n\r\n")
+        await writer.drain()
+
+    except Exception as e:
+        logger.error(f"HTTP handler error: {e}")
+    finally:
+        writer.close()
+
+
+async def run_http_mode(host: str = "0.0.0.0", port: int = 8080):
+    """Run the MCP server in HTTP mode for Docker/Kubernetes deployments."""
+    global _SERVER_READY
+    server = await asyncio.start_server(_handle_http_tool_call, host, port)
+    _SERVER_READY = True
+    logger.info(f"MCP HTTP server listening on {host}:{port}")
+    logger.info("Endpoints: GET /health  GET /ready  POST /tool")
+    async with server:
+        await server.serve_forever()
+
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    import os
+    transport = os.getenv("TRANSPORT", "stdio").lower()
+    if transport == "http":
+        asyncio.run(run_http_mode(port=int(os.getenv("PORT", "8080"))))
+    else:
+        asyncio.run(main())
