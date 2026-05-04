@@ -1,12 +1,96 @@
 # aws-azure-mcp-infra-server
 
+`https://img.shields.io/badge/Python-3.10+-blue`
+`https://img.shields.io/badge/Docker-Ready-blue`
+`https://img.shields.io/badge/CI-GitHub_Actions-green`
+`https://img.shields.io/badge/License-MIT-yellow`
+`https://img.shields.io/badge/MCP-Server-orange`
+
 An [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server that bridges **multi-cloud infrastructure** with **AI agent context management** and a **RAG-powered knowledge base**.
 
-Designed to complement AI agent platforms running on EKS and AKS — agents can query live infrastructure state, track costs, maintain persistent memory, and retrieve grounded answers from an infrastructure knowledge base powered by Claude or OpenAI.
+Designed to complement AI agent platforms running on **EKS** and **AKS** — agents can query live infrastructure state, track costs, maintain persistent memory, and retrieve grounded answers from an infrastructure knowledge base powered by **Claude** or **OpenAI**.
 
 ---
 
-## Architecture
+## Why This Exists
+
+AI agents are powerful, but without real infrastructure context they are:
+
+- **Blind** to cloud resources  
+- **Unreliable** when asked about IaC or runbooks  
+- **Unsafe** when taking infrastructure actions  
+- **Fragmented** across AWS and Azure  
+
+Enterprises need agents that are:
+
+- **Grounded** in real Terraform, docs, and code  
+- **Aware** of live AWS + Azure state  
+- **Deterministic** and auditable  
+- **Unified** across multi-cloud environments  
+
+`aws-azure-mcp-infra-server` solves this by giving agents:
+
+- A **single multi-cloud control plane**  
+- A **RAG-powered knowledge base** grounded in your repos  
+- A **memory + task system** for long-term reasoning  
+- A **safe, structured interface** to cloud operations  
+
+This transforms agents from “chatbots” into **reliable infrastructure copilots**.
+
+---
+
+## Architecture (Mermaid)
+
+```mermaid
+flowchart TB
+    subgraph AgentLayer["AI Agent Platforms"]
+        A1["Claude / GPT Agents"]
+        A2["aws-bedrock-eks-agent-platform"]
+        A3["azure-openai-aks-agent-platform"]
+    end
+
+    subgraph MCPServer["aws-azure-mcp-infra-server"]
+        subgraph AWS["AWS Tools"]
+            AWS1["EC2 / EKS"]
+            AWS2["S3 / Lambda"]
+            AWS3["Cost Explorer"]
+        end
+
+        subgraph AZ["Azure Tools"]
+            AZ1["VM / AKS"]
+            AZ2["Storage / Functions"]
+            AZ3["Cost Management"]
+        end
+
+        subgraph AgentTools["Agent Tools"]
+            AT1["Memory Store (Redis or in-proc)"]
+            AT2["Task Queue (priority-ordered)"]
+            AT3["Infra Health Summary"]
+        end
+
+        subgraph RAG["RAG Tools"]
+            R1["query_knowledge_base"]
+            R2["compare_knowledge_base"]
+        end
+    end
+
+    subgraph RAGPipeline["aws-azure-rag-pipeline"]
+        RP1["Qdrant Vector Store"]
+        RP2["Claude / OpenAI Embeddings"]
+    end
+
+    A1 -->|MCP Protocol| MCPServer
+    A2 -->|MCP Protocol| MCPServer
+    A3 -->|MCP Protocol| MCPServer
+
+    MCPServer -->|SDK Calls| AWS
+    MCPServer -->|SDK Calls| AZ
+    MCPServer -->|RAG Queries| RAGPipeline
+```
+
+---
+
+## Architecture (ASCII)
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -62,22 +146,102 @@ Designed to complement AI agent platforms running on EKS and AKS — agents can 
 | `get_agent_tasks` | Retrieve task queue (filterable by status) |
 | `complete_agent_task` | Mark a task done with optional result |
 | `get_infra_health_summary` | Aggregated health across AWS + Azure |
-| `query_knowledge_base` | RAG query against infrastructure docs and code — answers powered by Claude or OpenAI |
-| `compare_knowledge_base` | Same RAG query answered by both Claude and OpenAI in parallel |
+| `query_knowledge_base` | RAG query against infrastructure docs and code |
+| `compare_knowledge_base` | Same RAG query answered by Claude + OpenAI |
+
+---
+
+## How Agents Use This
+
+### 1. Querying live infrastructure
+
+```json
+{
+  "name": "get_aws_resources",
+  "arguments": {
+    "service": "eks",
+    "region": "us-east-1"
+  }
+}
+```
+
+---
+
+### 2. Retrieving grounded RAG answers
+
+```json
+{
+  "name": "query_knowledge_base",
+  "arguments": {
+    "query": "AKS node pool autoscaling configuration",
+    "provider": "claude"
+  }
+}
+```
+
+---
+
+### 3. Comparing Claude vs GPT interpretations
+
+```json
+{
+  "name": "compare_knowledge_base",
+  "arguments": {
+    "query": "EKS ↔ AKS cross-cloud networking architecture"
+  }
+}
+```
+
+---
+
+### 4. Persisting long-term agent memory
+
+```json
+{
+  "name": "store_agent_memory",
+  "arguments": {
+    "agent_id": "infra-agent",
+    "key": "aks_prod_nodepool",
+    "value": "np-prod-01"
+  }
+}
+```
+
+---
+
+### 5. Adding tasks to the agent’s queue
+
+```json
+{
+  "name": "add_agent_task",
+  "arguments": {
+    "agent_id": "infra-agent",
+    "task": "check_aws_cost_anomalies",
+    "priority": "high"
+  }
+}
+```
 
 ---
 
 ## RAG Integration
 
-The `query_knowledge_base` and `compare_knowledge_base` tools connect to the [aws-azure-rag-pipeline](https://github.com/joshphillis/aws-azure-rag-pipeline), which indexes infrastructure docs, Terraform configs, runbooks, and code from your AWS and Azure repos.
+The RAG tools connect to the  
+**[aws-azure-rag-pipeline](https://github.com/joshphillis/aws-azure-rag-pipeline)**,  
+which indexes:
 
-Agents use this tool to retrieve grounded, cited answers before taking infrastructure actions — eliminating hallucination and keeping agent decisions traceable to source.
+- Terraform modules  
+- Infrastructure documentation  
+- Runbooks  
+- AWS + Azure code repositories  
 
-Set `RAG_PIPELINE_URL` to point to your running RAG pipeline instance:
+Agents receive **grounded, cited answers** before taking infrastructure actions.
 
-```
-RAG_PIPELINE_URL=http://host.docker.internal:8000  # local Docker
-RAG_PIPELINE_URL=http://rag-pipeline-service:8000  # Kubernetes
+Set the pipeline URL:
+
+```bash
+RAG_PIPELINE_URL=http://host.docker.internal:8000
+RAG_PIPELINE_URL=http://rag-pipeline-service:8000
 ```
 
 ---
@@ -90,20 +254,15 @@ RAG_PIPELINE_URL=http://rag-pipeline-service:8000  # Kubernetes
 git clone https://github.com/joshphillis/aws-azure-mcp-infra-server.git
 cd aws-azure-mcp-infra-server
 cp .env.example .env
-# Edit .env with your AWS and Azure credentials
 ```
 
-### 2. Run locally with Docker Compose
+### 2. Run locally
 
 ```bash
 docker compose up --build
 ```
 
-This starts:
-- The MCP server on port `8080`
-- Redis on port `6379` (for persistent agent memory)
-
-### 3. Test the RAG tool
+### 3. Test RAG
 
 ```bash
 curl -X POST http://localhost:8080/tool \
@@ -123,17 +282,17 @@ curl -X POST http://localhost:8080/tool \
 
 | Variable | Description | Required |
 |----------|-------------|----------|
-| `AWS_ACCESS_KEY_ID` | AWS access key | No (use IAM role) |
-| `AWS_SECRET_ACCESS_KEY` | AWS secret key | No (use IAM role) |
-| `AWS_DEFAULT_REGION` | Default AWS region | No (default: `us-east-1`) |
-| `AZURE_TENANT_ID` | Azure tenant ID | No (use Workload Identity) |
-| `AZURE_CLIENT_ID` | Azure service principal client ID | No (use Workload Identity) |
-| `AZURE_CLIENT_SECRET` | Azure service principal secret | No (use Workload Identity) |
-| `AZURE_SUBSCRIPTION_ID` | Azure subscription ID | Yes (for Azure tools) |
-| `REDIS_URL` | Redis connection URL | No (uses in-process store) |
-| `RAG_PIPELINE_URL` | URL of the aws-azure-rag-pipeline | No (default: `http://localhost:8000`) |
+| `AWS_ACCESS_KEY_ID` | AWS access key | No |
+| `AWS_SECRET_ACCESS_KEY` | AWS secret key | No |
+| `AWS_DEFAULT_REGION` | Default AWS region | No |
+| `AZURE_TENANT_ID` | Azure tenant ID | No |
+| `AZURE_CLIENT_ID` | Azure service principal client ID | No |
+| `AZURE_CLIENT_SECRET` | Azure service principal secret | No |
+| `AZURE_SUBSCRIPTION_ID` | Azure subscription ID | Yes |
+| `REDIS_URL` | Redis connection URL | No |
+| `RAG_PIPELINE_URL` | RAG pipeline URL | No |
 
-> **Production tip:** Use **IRSA** (EKS) or **Workload Identity** (AKS) instead of static credentials.
+> **Use IRSA (EKS) or Workload Identity (AKS) in production.**
 
 ---
 
@@ -150,36 +309,16 @@ terraform apply \
 
 ---
 
-## Connecting to Claude / Cursor / VS Code
-
-```json
-{
-  "mcpServers": {
-    "infra": {
-      "command": "python",
-      "args": ["src/server.py"],
-      "env": {
-        "AWS_DEFAULT_REGION": "us-east-1",
-        "AZURE_SUBSCRIPTION_ID": "YOUR_SUB_ID",
-        "RAG_PIPELINE_URL": "http://localhost:8000"
-      }
-    }
-  }
-}
-```
-
----
-
 ## Related Repositories
 
 | Repo | Description |
 |------|-------------|
-| [aws-azure-rag-pipeline](https://github.com/joshphillis/aws-azure-rag-pipeline) | Provider-agnostic RAG pipeline — Claude or OpenAI, Qdrant vector store |
-| [aws-bedrock-eks-agent-platform](https://github.com/joshphillis/aws-bedrock-eks-agent-platform) | AI agent platform on AWS Bedrock + EKS |
-| [azure-openai-aks-agent-platform](https://github.com/joshphillis/azure-openai-aks-agent-platform) | AI agent platform on Azure OpenAI + AKS |
-| [aws-secure-agent-platform-terraform](https://github.com/joshphillis/aws-secure-agent-platform-terraform) | Secure Terraform IaC for AWS agent platform |
-| [azure-openai-secure-agent-platform-terraform](https://github.com/joshphillis/azure-openai-secure-agent-platform-terraform) | Secure Terraform IaC for Azure agent platform |
-| [agent-platform-cicd](https://github.com/joshphillis/agent-platform-cicd) | CI/CD pipeline for AWS and Azure agent platforms |
+| **aws-azure-rag-pipeline** | Provider-agnostic RAG pipeline |
+| **aws-bedrock-eks-agent-platform** | AI agent platform on AWS |
+| **azure-openai-aks-agent-platform** | AI agent platform on Azure |
+| **aws-secure-agent-platform-terraform** | Secure AWS IaC |
+| **azure-openai-secure-agent-platform-terraform** | Secure Azure IaC |
+| **agent-platform-cicd** | CI/CD for multi-cloud agent platforms |
 
 ---
 
