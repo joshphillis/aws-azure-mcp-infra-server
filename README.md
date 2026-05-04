@@ -186,12 +186,3 @@ terraform apply \
 ## License
 
 MIT
-```
-
-Save it, then commit and push:
-
-```bash
-git add README.md
-git commit -m "docs: update README with RAG integration and new tools"
-git push origin master
-```
