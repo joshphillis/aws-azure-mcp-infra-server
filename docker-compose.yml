@@ -21,6 +21,8 @@ services:
       - TRANSPORT=http
       # Redis (optional — leave unset for in-process memory store)
       - REDIS_URL=${REDIS_URL}
+      #RAG Pipeline
+      - RAG_PIPELINE_URL=http://host.docker.internal:8000
     depends_on:
       - redis
     restart: unless-stopped
