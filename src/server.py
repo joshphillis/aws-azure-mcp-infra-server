@@ -20,6 +20,10 @@ from threading import Thread
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent
+from tools.rag_tools import (
+    query_knowledge_base,
+    compare_knowledge_base,
+)
 
 from tools.aws_tools import (
     get_aws_resources,
@@ -231,6 +235,41 @@ async def list_tools() -> list[Tool]:
                 "required": [],
             },
         ),
+        
+Tool(
+            name="query_knowledge_base",
+            description="Query the infrastructure knowledge base using RAG. Returns a grounded, cited answer about AWS/Azure infrastructure docs, Terraform configs, runbooks, and code. Use this before taking any infrastructure action to retrieve relevant context.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Natural language question about infrastructure"},
+                    "provider": {
+                        "type": "string",
+                        "enum": ["claude", "openai"],
+                        "description": "LLM provider for answer generation (default: claude)",
+                    },
+                    "top_k": {"type": "integer", "description": "Number of chunks to retrieve (default: 5)"},
+                    "doc_type": {
+                        "type": "string",
+                        "enum": ["docs", "code", "runbook"],
+                        "description": "Filter by content type (optional)",
+                    },
+                },
+                "required": ["query"],
+            },
+        ),
+        Tool(
+            name="compare_knowledge_base",
+            description="Query the infrastructure knowledge base with both Claude and OpenAI simultaneously and return both answers for comparison.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Natural language question about infrastructure"},
+                    "top_k": {"type": "integer", "description": "Number of chunks to retrieve (default: 5)"},
+                },
+                "required": ["query"],
+            },
+        ),
     ]
 
 
@@ -247,6 +286,8 @@ _HANDLERS = {
     "get_agent_tasks": get_agent_tasks,
     "complete_agent_task": complete_agent_task,
     "get_infra_health_summary": get_infra_health_summary,
+    "query_knowledge_base": query_knowledge_base,
+    "compare_knowledge_base": compare_knowledge_base,
 }
 
 
