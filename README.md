@@ -10,6 +10,8 @@ An [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server that b
 
 Designed to complement AI agent platforms running on **EKS** and **AKS** — agents can query live infrastructure state, track costs, maintain persistent memory, and retrieve grounded answers from an infrastructure knowledge base powered by **Claude** or **OpenAI**.
 
+📐 See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full three-layer stack design, data flow, and local setup guide.
+
 ---
 
 ## Why This Exists
